@@ -1,0 +1,50 @@
+class Generator(nn.Module):
+
+    def __init__(self, base_channels=64, z_dim=100, channel=3, n_classes=2, upsample = True):
+        super().__init__()
+
+        self.z_dim = z_dim
+        self.shared_dim = shared_dim
+
+        self.proj_z = SNLinear(z_dim, 16* base_channels * 4 ** 2)
+
+        self.g_blocks = nn.ModuleList([
+                nn.ModuleList([
+                    GResidualBlock(16 * base_channels,16 * base_channels)
+                ]),
+                nn.ModuleList([
+                    GResidualBlock(16 * base_channels, 8 * base_channels)
+                ]),
+                nn.ModuleList([
+                    GResidualBlock( 8 * base_channels, 4 * base_channels)
+                ]),
+                nn.ModuleList([
+                    GResidualBlock( 4 * base_channels, 2 * base_channels),
+                ]),
+                nn.ModuleList([
+                    GResidualBlock(2 * base_channels, base_channels),
+                    CBAM(base_channels)
+                ])
+
+        ])
+
+        self.proj_o = nn.Sequential(
+            nn.BatchNorm2d(base_channels),
+            nn.ReLU(),
+            nn.Conv2d(base_channels, channel, kernel_size=3, padding=1, stride=1)
+        )
+
+    def forward(self, z):
+        h = self.proj_z(z)
+        h = h.view(h.size(0),-1, 4, 4)
+
+        # Loop over blocks
+        for index, blocklist in enumerate(self.g_blocks):
+            # Second inner loop in case block has multiple layers
+            for block in blocklist:
+                h = block(h)
+
+        # Project to 3 RGB channels with tanh to map values to [-1, 1]
+        h = self.proj_o(h)
+
+        return   torch.tanh(h)
