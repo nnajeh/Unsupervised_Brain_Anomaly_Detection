@@ -1,0 +1,29 @@
+class Encoder(nn.Module):
+    def __init__(self, n_class=2, drop_rate=0.0, img_size=128, channel=3):
+
+        super().__init__()
+
+        self.dropout = nn.Dropout(drop_rate)
+
+        self.blocks = nn.Sequential(
+               DResidualBlock(channel, base_channels,  downsample=True),
+                DResidualBlock(1 * base_channels, 2 * base_channels, downsample=True),
+                DResidualBlock(2 * base_channels, 4 * base_channels, downsample=True),
+                DResidualBlock(4 * base_channels, 8 * base_channels, downsample=True),
+                DResidualBlock(8 * base_channels, 16 * base_channels, downsample=True),
+                DResidualBlock(16 * base_channels, 16 * base_channels, downsample=False),
+
+)
+
+        self.linear = SNLinear(base_channels*16*4*4, z_dim)
+
+    def forward(self, x):
+        out = x.view(-1, channel, img_size,img_size)
+
+        out = self.blocks(out)
+
+        out = out.view(out.shape[0], -1)
+
+        out_linear = self.linear(out)
+
+        return torch.tanh(out_linear)
